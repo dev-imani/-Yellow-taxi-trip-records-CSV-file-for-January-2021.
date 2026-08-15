@@ -1,6 +1,7 @@
 import pandas as pd
 from sqlalchemy import create_engine
 from tqdm.auto import tqdm
+import click
 
 dtype = {
     "VendorID": "Int64",
@@ -26,27 +27,26 @@ parse_dates = [
     "tpep_dropoff_datetime",
 ]
 
-year = 2020
-month = 1
-
-pg_user = "root"
-pg_pass = "root"
-pg_host = "localhost"
-pg_port = 5433
-pg_db = "ny_taxi"
-
 chunksize = 100000
-target_table = "yellow_taxi_data_3"
 
-# Data source
-prefix = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/"
-url = f"{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz"
+@click.command()
+@click.option('--pg-user', default='root', help='PostgreSQL user')
+@click.option('--pg-pass', default='root', help='PostgreSQL password')
+@click.option('--pg-host', default='localhost', help='PostgreSQL host')
+@click.option('--pg-port', default=5432, type=int, help='PostgreSQL port')
+@click.option('--pg-db', default='ny_taxi', help='PostgreSQL database name')
+@click.option('--target-table', default='yellow_taxi_data', help='Target table name')
+@click.option('--year', default=2020, type=int, help='Year of dataset')
+@click.option('--month', default=1, type=int, help='Month of dataset')
+def run(pg_user, pg_pass, pg_host, pg_port, pg_db, target_table, year, month):
+    # Build URL
+    prefix = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/"
+    url = f"{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz"
 
-# Create DB engine
-engine = create_engine(f"postgresql+psycopg://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}")
+    # Create DB engine
+    engine = create_engine(f"postgresql+psycopg://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}")
 
-
-def run():
+    # Read in chunks
     df_iter = pd.read_csv(
         url,
         dtype=dtype,
@@ -58,7 +58,6 @@ def run():
     first = True
     for df_chunk in df_iter:
         if first:
-            # Create table schema
             df_chunk.head(0).to_sql(
                 name=target_table,
                 con=engine,
@@ -67,7 +66,6 @@ def run():
             first = False
             print("Table created")
 
-        # Insert chunk
         df_chunk.to_sql(
             name=target_table,
             con=engine,
